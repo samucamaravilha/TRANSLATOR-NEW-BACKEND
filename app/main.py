@@ -144,13 +144,10 @@ async def run_pipeline(session_id: str, raw_text: str, title: str):
 
 @app.get("/progress/{session_id}")
 async def progress(session_id: str):
-    """
-    Endpoint SSE — o frontend se conecta aqui para receber
-    eventos de progresso em tempo real.
-    """
-
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
     async def event_stream():
         last_stage = None
@@ -161,7 +158,6 @@ async def progress(session_id: str):
 
             current_stage = session["stage"]
 
-            # Só envia evento se houver mudança de estágio
             if current_stage != last_stage:
                 data = (
                     f"data: {{"
@@ -178,9 +174,16 @@ async def progress(session_id: str):
 
             await asyncio.sleep(1)
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 @app.get("/download/{session_id}/{format}")
 async def download(session_id: str, format: str):
     """
