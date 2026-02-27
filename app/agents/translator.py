@@ -90,7 +90,6 @@ This is chunk {index + 1} of {len(chunks)}. Translate ONLY these elements to Bra
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.3,
         )
 
         raw_json = response.choices[0].message.content.strip()

@@ -60,7 +60,6 @@ Parse this Fountain screenplay chunk into structured JSON elements:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.1,
     )
 
     raw_json = response.choices[0].message.content.strip()
