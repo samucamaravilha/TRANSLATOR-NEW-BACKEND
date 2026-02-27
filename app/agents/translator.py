@@ -85,7 +85,7 @@ This is chunk {index + 1} of {len(chunks)}. Translate ONLY these elements to Bra
 {translation_block}"""
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.2-chat-latest",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
