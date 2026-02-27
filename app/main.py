@@ -6,9 +6,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from dotenv import load_dotenv
-
 from app.schemas import TranslationResponse
 from app.agents import parse_fountain, translate_screenplay, format_fountain, format_pdf
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -74,10 +80,6 @@ async def translate(file: UploadFile = File(...)):
 
 
 async def run_pipeline(session_id: str, raw_text: str, title: str):
-    """
-    Executa os três agentes em sequência e atualiza o progresso da sessão.
-    """
-
     def update(stage, progress, message):
         sessions[session_id].update({
             "stage": stage,
@@ -86,22 +88,33 @@ async def run_pipeline(session_id: str, raw_text: str, title: str):
         })
 
     try:
+        logger.info(f"[{session_id}] Iniciando pipeline para '{title}'")
+        logger.info(f"[{session_id}] Tamanho do arquivo: {len(raw_text)} caracteres")
+
         # Agente 1 — Parser
         update("parsing", 10, "Analisando o roteiro...")
+        logger.info(f"[{session_id}] Agente 1 iniciado — Parser")
         loop = asyncio.get_event_loop()
         document = await loop.run_in_executor(None, parse_fountain, raw_text, title)
+        logger.info(f"[{session_id}] Agente 1 concluído — {len(document.elements)} elementos identificados")
 
         # Agente 2 — Tradutor
         update("translating", 40, "Traduzindo para português brasileiro...")
+        logger.info(f"[{session_id}] Agente 2 iniciado — Tradutor")
         document = await loop.run_in_executor(None, translate_screenplay, document)
+        logger.info(f"[{session_id}] Agente 2 concluído — tradução finalizada")
 
         # Agente 3 — Formatador Fountain
         update("formatting", 70, "Reconstruindo o roteiro em Fountain...")
+        logger.info(f"[{session_id}] Agente 3 iniciado — Formatador")
         fountain_text = await loop.run_in_executor(None, format_fountain, document)
+        logger.info(f"[{session_id}] Agente 3 concluído — {len(fountain_text)} caracteres gerados")
 
         # Geração do PDF
         update("generating_output", 85, "Gerando PDF...")
+        logger.info(f"[{session_id}] Gerando PDF...")
         pdf_bytes = await loop.run_in_executor(None, format_pdf, fountain_text, title)
+        logger.info(f"[{session_id}] PDF gerado — {len(pdf_bytes)} bytes")
 
         # Salva os arquivos
         fountain_path = OUTPUT_DIR / f"{session_id}.fountain"
@@ -118,14 +131,16 @@ async def run_pipeline(session_id: str, raw_text: str, title: str):
             "pdf_path": str(pdf_path),
         })
 
+        logger.info(f"[{session_id}] Pipeline concluído com sucesso!")
+
     except Exception as e:
+        logger.error(f"[{session_id}] Erro no pipeline: {str(e)}", exc_info=True)
         sessions[session_id].update({
             "stage": "error",
             "progress": 0,
             "message": "Erro durante a tradução.",
             "error": str(e),
         })
-
 
 @app.get("/progress/{session_id}")
 async def progress(session_id: str):
